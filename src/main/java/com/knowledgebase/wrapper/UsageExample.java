@@ -17,10 +17,18 @@ import java.util.Map;
 /**
  * Example usage of the Knowledge Base API Wrapper.
  * This class demonstrates how to use the wrapper for common operations.
+ * 
+ * NOTE: This example uses try-with-resources for demonstration purposes only.
+ * In production, you should create ONE client instance and reuse it throughout
+ * your application lifecycle. See BEST_PRACTICES.md for proper usage patterns.
  */
 public class UsageExample {
     
-    public static void main(String[] args) {
+    /**
+     * Demo example - for testing and understanding the API.
+     * DO NOT use this pattern in production code!
+     */
+    public static void demoExample() {
         // Configuration - replace with your actual values
         String baseUrl = "https://your-kb-service.com";
         String authToken = "your-bearer-token-here";
@@ -35,7 +43,8 @@ public class UsageExample {
                 .maxRetries(3)
                 .build();
         
-        // Use try-with-resources to automatically close client
+        // For demo only: Use try-with-resources to automatically close client
+        // In production: Create ONE client instance and reuse it!
         try (KnowledgeBaseClient client = new KnowledgeBaseClient(config)) {
             
             // Example 1: Upload a file
@@ -123,31 +132,95 @@ public class UsageExample {
         }
     }
     
+    public static void main(String[] args) {
+        demoExample();
+        // For production use, see ProductionExample below
+    }
+    
     /**
-     * Example of using the client in a Spring Boot service or similar.
+     * ✅ RECOMMENDED: Production-ready example with singleton pattern.
+     * Create ONE client instance and reuse it throughout the application.
      */
-    public static class ServiceExample {
+    public static class ProductionExample {
         
+        // Singleton instance - created once, reused everywhere
+        private static volatile KnowledgeBaseClient instance;
+        private static final Object lock = new Object();
+        
+        /**
+         * Get the global singleton client instance.
+         * This is the RECOMMENDED way to use the client in production.
+         */
+        public static KnowledgeBaseClient getClient() {
+            if (instance == null) {
+                synchronized (lock) {
+                    if (instance == null) {
+                        KnowledgeBaseConfig config = new KnowledgeBaseConfig.Builder()
+                                .baseUrl(System.getenv("KB_SERVICE_URL"))
+                                .authToken(System.getenv("KB_AUTH_TOKEN"))
+                                .connectTimeout(30)
+                                .readTimeout(120)
+                                .maxIdleConnections(20)  // Connection pool
+                                .keepAliveDuration(10)
+                                .enableLogging(false)
+                                .build();
+                        
+                        instance = new KnowledgeBaseClient(config);
+                        
+                        // Register shutdown hook to close client on application exit
+                        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                            if (instance != null) {
+                                instance.close();
+                            }
+                        }));
+                    }
+                }
+            }
+            return instance;
+        }
+        
+        /**
+         * Example: Upload and query - reusing the same client instance
+         */
+        public static void example() throws KnowledgeBaseException {
+            KnowledgeBaseClient client = getClient();
+            
+            // Multiple operations using the SAME client instance
+            List<Map<String, Object>> datasets = client.listDatasets();
+            
+            if (!datasets.isEmpty()) {
+                String datasetId = (String) datasets.get(0).get("id");
+                Map<String, Object> results = client.queryDataset(datasetId, "test query");
+                System.out.println("Query results: " + results);
+            }
+            
+            // No need to close - will be closed on application shutdown
+        }
+    }
+    
+    /**
+     * ✅ RECOMMENDED: Spring Boot example with dependency injection.
+     * This is the BEST way to use the client in Spring Boot applications.
+     */
+    public static class SpringBootExample {
+        
+        // Injected singleton client - Spring manages lifecycle
         private final KnowledgeBaseClient client;
         
-        public ServiceExample(String baseUrl, String authToken) {
-            KnowledgeBaseConfig config = new KnowledgeBaseConfig.Builder()
-                    .baseUrl(baseUrl)
-                    .authToken(authToken)
-                    .enableLogging(false) // Disable in production
-                    .build();
-            
-            this.client = new KnowledgeBaseClient(config);
+        // Constructor injection (recommended)
+        public SpringBootExample(KnowledgeBaseClient client) {
+            this.client = client;
         }
         
         /**
          * Business method: Create knowledge base from file.
+         * Notice: Reuses the SAME client instance injected by Spring.
          */
         public String createKnowledgeBase(File file) throws KnowledgeBaseException {
-            // Upload file
+            // Upload file using the singleton client
             FileService.FileUploadResponse uploadResponse = client.uploadFile(file);
             
-            // Create dataset
+            // Create dataset using the SAME client
             InitDatasetRequest request = new InitDatasetRequest.Builder()
                     .indexingTechnique(IndexingTechnique.HIGH_QUALITY)
                     .dataSource(DataSource.forUploadFile(
@@ -163,16 +236,26 @@ public class UsageExample {
         
         /**
          * Business method: Search in knowledge base.
+         * Notice: Reuses the SAME client instance.
          */
         public Map<String, Object> search(String datasetId, String query) throws KnowledgeBaseException {
+            // Reuse the singleton client - efficient and thread-safe
             return client.queryDataset(datasetId, query);
         }
         
         /**
-         * Cleanup method - call when service is destroyed.
+         * Multiple operations example - all using the same client instance.
          */
-        public void destroy() {
-            client.close();
+        public void multipleOperations(String datasetId) throws KnowledgeBaseException {
+            // All these calls reuse the same HTTP connection pool
+            client.listDatasets();
+            client.queryDataset(datasetId, "query 1");
+            client.queryDataset(datasetId, "query 2");
+            client.listDocuments(datasetId);
+            // Very efficient! Connection pool is reused.
         }
+        
+        // No destroy() method needed - Spring will call close() automatically
+        // because KnowledgeBaseClient implements AutoCloseable
     }
 }

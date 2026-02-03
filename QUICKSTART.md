@@ -1,5 +1,25 @@
 # Knowledge Base API Wrapper - Quick Start Guide
 
+## ⚠️ 重要提示
+
+**客户端应该作为单例使用，不要每次操作都创建新实例！**
+
+```java
+// ❌ 错误做法 - 每次都创建新实例（性能差）
+try (KnowledgeBaseClient client = new KnowledgeBaseClient(config)) {
+    client.queryDataset(datasetId, query);
+}
+
+// ✅ 正确做法 - 创建一次，重复使用（高性能）
+KnowledgeBaseClient client = createSingletonClient();
+client.queryDataset(datasetId, query);  // 复用连接池
+client.listDatasets();                   // 复用连接池
+```
+
+详见 [BEST_PRACTICES.md](BEST_PRACTICES.md) 获取完整的最佳实践指南。
+
+---
+
 ## 5分钟快速开始
 
 ### 步骤 1: 获取 JAR 包
@@ -45,55 +65,134 @@ mvn clean install
 
 ### 步骤 3: 编写第一个程序
 
+#### 方式 1: 单例模式（推荐用于普通 Java 应用）
+
 ```java
 import com.knowledgebase.wrapper.client.KnowledgeBaseClient;
 import com.knowledgebase.wrapper.config.KnowledgeBaseConfig;
-import com.knowledgebase.wrapper.model.common.*;
-import com.knowledgebase.wrapper.model.request.InitDatasetRequest;
-import com.knowledgebase.wrapper.model.response.InitDatasetResponse;
-import com.knowledgebase.wrapper.service.FileService;
-
-import java.io.File;
-import java.util.Collections;
 
 public class QuickStartExample {
+    
+    // 单例客户端 - 应用级别创建一次
+    private static volatile KnowledgeBaseClient instance;
+    
+    public static KnowledgeBaseClient getClient() {
+        if (instance == null) {
+            synchronized (QuickStartExample.class) {
+                if (instance == null) {
+                    KnowledgeBaseConfig config = new KnowledgeBaseConfig.Builder()
+                        .baseUrl("https://your-kb-service.com")
+                        .authToken("your-bearer-token")
+                        .enableLogging(true)
+                        .build();
+                    
+                    instance = new KnowledgeBaseClient(config);
+                    
+                    // 应用退出时关闭
+                    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                        if (instance != null) instance.close();
+                    }));
+                }
+            }
+        }
+        return instance;
+    }
+    
     public static void main(String[] args) throws Exception {
-        // 1. 创建配置
-        KnowledgeBaseConfig config = new KnowledgeBaseConfig.Builder()
-            .baseUrl("https://your-kb-service.com")
-            .authToken("your-bearer-token")
-            .enableLogging(true)
+        // 获取单例客户端
+        KnowledgeBaseClient client = getClient();
+        
+        // 多次使用同一个客户端（高效！）
+        File file = new File("document.pdf");
+        FileService.FileUploadResponse uploadResponse = client.uploadFile(file);
+        
+        InitDatasetRequest request = new InitDatasetRequest.Builder()
+            .indexingTechnique(IndexingTechnique.HIGH_QUALITY)
+            .dataSource(DataSource.forUploadFile(
+                Collections.singletonList(uploadResponse.getId())
+            ))
+            .embeddingModel("text-embedding-v2")
+            .embeddingModelProvider("your-provider")
             .build();
         
-        // 2. 创建客户端
-        try (KnowledgeBaseClient client = new KnowledgeBaseClient(config)) {
+        InitDatasetResponse response = client.initDataset(request);
+        String datasetId = response.getDataset().getId();
+        
+        // 复用同一个客户端查询
+        Map<String, Object> results = client.queryDataset(
+            datasetId, 
+            "文档的主要内容是什么？"
+        );
+        
+        // 继续复用
+        client.listDatasets();
+        client.listDocuments(datasetId);
+        
+        // 不需要手动关闭，shutdown hook 会处理
+    }
+}
+```
+
+#### 方式 2: Spring Boot 集成（推荐用于 Spring 应用）
+
+**配置类：**
+
+```java
+@Configuration
+public class KnowledgeBaseConfiguration {
+    
+    @Value("${knowledgebase.url}")
+    private String baseUrl;
+    
+    @Value("${knowledgebase.token}")
+    private String authToken;
+    
+    @Bean
+    public KnowledgeBaseClient knowledgeBaseClient() {
+        KnowledgeBaseConfig config = new KnowledgeBaseConfig.Builder()
+            .baseUrl(baseUrl)
+            .authToken(authToken)
+            .maxIdleConnections(20)  // 连接池配置
+            .keepAliveDuration(10)
+            .build();
+        
+        return new KnowledgeBaseClient(config);
+    }
+}
+```
+
+**Service 类：**
+
+```java
+@Service
+public class DocumentService {
+    
+    @Autowired
+    private KnowledgeBaseClient kbClient;  // Spring 注入的单例
+    
+    public String uploadDocument(MultipartFile file) throws Exception {
+        File tempFile = convertToFile(file);
+        try {
+            // 使用注入的客户端 - 线程安全且高效
+            FileService.FileUploadResponse response = kbClient.uploadFile(tempFile);
             
-            // 3. 上传文件
-            File file = new File("document.pdf");
-            FileService.FileUploadResponse uploadResponse = client.uploadFile(file);
-            System.out.println("文件已上传: " + uploadResponse.getId());
-            
-            // 4. 创建知识库
             InitDatasetRequest request = new InitDatasetRequest.Builder()
                 .indexingTechnique(IndexingTechnique.HIGH_QUALITY)
                 .dataSource(DataSource.forUploadFile(
-                    Collections.singletonList(uploadResponse.getId())
+                    Collections.singletonList(response.getId())
                 ))
-                .embeddingModel("text-embedding-v2")
-                .embeddingModelProvider("your-provider")
                 .build();
             
-            InitDatasetResponse response = client.initDataset(request);
-            String datasetId = response.getDataset().getId();
-            System.out.println("知识库已创建: " + datasetId);
-            
-            // 5. 查询知识库
-            Map<String, Object> results = client.queryDataset(
-                datasetId, 
-                "文档的主要内容是什么？"
-            );
-            System.out.println("查询结果: " + results);
+            InitDatasetResponse dataset = kbClient.initDataset(request);
+            return dataset.getDataset().getId();
+        } finally {
+            tempFile.delete();
         }
+    }
+    
+    public Map<String, Object> search(String datasetId, String query) throws Exception {
+        // 复用同一个客户端实例 - 非常高效！
+        return kbClient.queryDataset(datasetId, query);
     }
 }
 ```
@@ -103,14 +202,17 @@ public class QuickStartExample {
 ### 场景 1: 批量上传文件创建知识库
 
 ```java
-// 上传多个文件
+// 获取单例客户端
+KnowledgeBaseClient client = KnowledgeBaseManager.getInstance();
+
+// 上传多个文件 - 复用连接
 List<String> fileIds = new ArrayList<>();
 for (File file : files) {
     FileService.FileUploadResponse response = client.uploadFile(file);
     fileIds.add(response.getId());
 }
 
-// 创建包含所有文件的知识库
+// 创建包含所有文件的知识库 - 复用连接
 InitDatasetRequest request = new InitDatasetRequest.Builder()
     .indexingTechnique(IndexingTechnique.HIGH_QUALITY)
     .dataSource(DataSource.forUploadFile(fileIds))
@@ -122,25 +224,31 @@ InitDatasetResponse response = client.initDataset(request);
 ### 场景 2: 查询并管理文档
 
 ```java
-// 列出所有文档
+// 获取单例客户端
+KnowledgeBaseClient client = KnowledgeBaseManager.getInstance();
+
+// 列出所有文档 - 复用连接
 List<Map<String, Object>> documents = client.listDocuments(datasetId);
 
-// 重命名文档
+// 重命名文档 - 复用连接
 String documentId = (String) documents.get(0).get("id");
 client.renameDocument(datasetId, documentId, "新文档名");
 
-// 删除文档
+// 删除文档 - 复用连接
 client.deleteDocument(datasetId, documentId);
 ```
 
 ### 场景 3: 监控索引状态
 
 ```java
+// 获取单例客户端
+KnowledgeBaseClient client = KnowledgeBaseManager.getInstance();
+
 // 获取批次索引状态
 String batchId = response.getBatch();
 Map<String, Object> status = client.getIndexingStatus(datasetId, batchId);
 
-// 等待索引完成
+// 等待索引完成 - 复用连接轮询
 while (!"completed".equals(status.get("indexing_status"))) {
     Thread.sleep(5000);
     status = client.getIndexingStatus(datasetId, batchId);
@@ -153,22 +261,20 @@ while (!"completed".equals(status.get("indexing_status"))) {
 @Service
 public class DocumentService {
     
-    private final KnowledgeBaseClient kbClient;
-    
+    // Spring 自动注入单例客户端
     @Autowired
-    public DocumentService(KnowledgeBaseClient kbClient) {
-        this.kbClient = kbClient;
-    }
+    private KnowledgeBaseClient kbClient;
     
     @Transactional
     public String uploadAndCreateKnowledgeBase(MultipartFile file) throws Exception {
         // 转换并上传文件
         File tempFile = convertMultipartFileToFile(file);
         try {
+            // 使用注入的单例客户端 - 线程安全
             FileService.FileUploadResponse uploadResponse = 
                 kbClient.uploadFile(tempFile);
             
-            // 创建知识库
+            // 创建知识库 - 复用连接
             InitDatasetRequest request = new InitDatasetRequest.Builder()
                 .indexingTechnique(IndexingTechnique.HIGH_QUALITY)
                 .dataSource(DataSource.forUploadFile(
@@ -186,9 +292,12 @@ public class DocumentService {
     public List<Map<String, Object>> searchKnowledgeBase(
             String datasetId, 
             String query) throws Exception {
+        // 复用同一个客户端实例 - 高效！
         Map<String, Object> results = kbClient.queryDataset(datasetId, query);
         return (List<Map<String, Object>>) results.get("data");
     }
+    
+    // Spring 会在容器关闭时自动调用 close()
 }
 ```
 
