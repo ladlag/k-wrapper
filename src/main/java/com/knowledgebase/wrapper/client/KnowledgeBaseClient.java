@@ -2,8 +2,10 @@ package com.knowledgebase.wrapper.client;
 
 import com.knowledgebase.wrapper.config.KnowledgeBaseConfig;
 import com.knowledgebase.wrapper.exception.KnowledgeBaseException;
+import com.knowledgebase.wrapper.model.common.IndexingTechnique;
 import com.knowledgebase.wrapper.model.request.InitDatasetRequest;
 import com.knowledgebase.wrapper.model.response.InitDatasetResponse;
+import com.knowledgebase.wrapper.service.BatchUploadService;
 import com.knowledgebase.wrapper.service.DatasetService;
 import com.knowledgebase.wrapper.service.DocumentService;
 import com.knowledgebase.wrapper.service.FileService;
@@ -53,6 +55,7 @@ public class KnowledgeBaseClient implements AutoCloseable {
     private final DatasetService datasetService;
     private final DocumentService documentService;
     private final FileService fileService;
+    private final BatchUploadService batchUploadService;
     
     /**
      * Creates a new Knowledge Base client with the given configuration.
@@ -66,6 +69,7 @@ public class KnowledgeBaseClient implements AutoCloseable {
         this.datasetService = new DatasetService(httpClient);
         this.documentService = new DocumentService(httpClient);
         this.fileService = new FileService(httpClient);
+        this.batchUploadService = new BatchUploadService(httpClient);
     }
     
     // ==================== File Operations ====================
@@ -79,6 +83,52 @@ public class KnowledgeBaseClient implements AutoCloseable {
      */
     public FileService.FileUploadResponse uploadFile(File file) throws KnowledgeBaseException {
         return fileService.uploadFile(file);
+    }
+    
+    /**
+     * Uploads multiple files in batches concurrently.
+     * Supports batch processing for better performance with large file sets.
+     * 
+     * @param files list of files to upload
+     * @param batchSize number of files to upload concurrently in each batch (recommended: 10-20)
+     * @return list of uploaded file IDs
+     * @throws KnowledgeBaseException if any upload fails
+     */
+    public List<String> uploadFilesBatch(List<File> files, int batchSize) throws KnowledgeBaseException {
+        return batchUploadService.uploadFilesBatch(files, batchSize);
+    }
+    
+    /**
+     * Uploads multiple files in batches with progress reporting.
+     * 
+     * @param files list of files to upload
+     * @param batchSize number of files to upload concurrently in each batch
+     * @param progressCallback callback to receive progress updates
+     * @return list of uploaded file IDs
+     * @throws KnowledgeBaseException if any upload fails
+     */
+    public List<String> uploadFilesWithProgress(
+            List<File> files,
+            int batchSize,
+            BatchUploadService.ProgressCallback progressCallback) throws KnowledgeBaseException {
+        return batchUploadService.uploadFilesWithProgress(files, batchSize, progressCallback);
+    }
+    
+    /**
+     * Uploads multiple files and creates a dataset in one operation.
+     * This is a convenience method that combines file upload and dataset creation.
+     * 
+     * @param files list of files to upload
+     * @param batchSize number of files to upload concurrently in each batch
+     * @param indexingTechnique indexing technique for the dataset
+     * @return the created dataset response
+     * @throws KnowledgeBaseException if upload or dataset creation fails
+     */
+    public InitDatasetResponse uploadAndCreateDataset(
+            List<File> files,
+            int batchSize,
+            IndexingTechnique indexingTechnique) throws KnowledgeBaseException {
+        return batchUploadService.uploadAndCreateDataset(files, batchSize, indexingTechnique);
     }
     
     // ==================== Dataset Operations ====================
@@ -206,6 +256,7 @@ public class KnowledgeBaseClient implements AutoCloseable {
     @Override
     public void close() {
         logger.info("Closing Knowledge Base Client");
+        batchUploadService.shutdown();
         httpClient.shutdown();
     }
 }
