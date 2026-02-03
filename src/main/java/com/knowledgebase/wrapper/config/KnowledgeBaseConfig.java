@@ -20,6 +20,7 @@ public class KnowledgeBaseConfig {
     private final int maxRetries;
     private final int maxIdleConnections;
     private final long keepAliveDuration;
+    private final int retryBackoffMultiplier;
 
     private KnowledgeBaseConfig(Builder builder) {
         this.baseUrl = builder.baseUrl;
@@ -31,6 +32,7 @@ public class KnowledgeBaseConfig {
         this.maxRetries = builder.maxRetries;
         this.maxIdleConnections = builder.maxIdleConnections;
         this.keepAliveDuration = builder.keepAliveDuration;
+        this.retryBackoffMultiplier = builder.retryBackoffMultiplier;
     }
 
     public String getBaseUrl() {
@@ -68,6 +70,10 @@ public class KnowledgeBaseConfig {
     public long getKeepAliveDuration() {
         return keepAliveDuration;
     }
+    
+    public int getRetryBackoffMultiplier() {
+        return retryBackoffMultiplier;
+    }
 
     /**
      * Builder class for KnowledgeBaseConfig using Builder pattern.
@@ -82,6 +88,7 @@ public class KnowledgeBaseConfig {
         private int maxRetries = 3;
         private int maxIdleConnections = 5;
         private long keepAliveDuration = 5;
+        private int retryBackoffMultiplier = 1000;
 
         public Builder() {
         }
@@ -173,6 +180,18 @@ public class KnowledgeBaseConfig {
          */
         public Builder keepAliveDuration(long keepAliveDuration) {
             this.keepAliveDuration = keepAliveDuration;
+            return this;
+        }
+        
+        /**
+         * Sets the retry backoff multiplier in milliseconds.
+         * This value is multiplied by the retry attempt number to calculate wait time.
+         * For example, with multiplier=1000: retry 1 waits 1s, retry 2 waits 2s, etc.
+         * @param retryBackoffMultiplier multiplier in milliseconds (default: 1000)
+         * @return this builder
+         */
+        public Builder retryBackoffMultiplier(int retryBackoffMultiplier) {
+            this.retryBackoffMultiplier = retryBackoffMultiplier;
             return this;
         }
 

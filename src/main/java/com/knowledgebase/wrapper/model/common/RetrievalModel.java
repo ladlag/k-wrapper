@@ -181,6 +181,12 @@ public class RetrievalModel {
         public VectorSetting() {
         }
         
+        /**
+         * Creates a VectorSetting with default empty embedding provider and model names.
+         * These fields are typically populated automatically by the API based on the dataset configuration.
+         * 
+         * @param vectorWeight the weight for vector search (0.0 to 1.0)
+         */
         public VectorSetting(double vectorWeight) {
             this.vectorWeight = vectorWeight;
             this.embeddingProviderName = "";

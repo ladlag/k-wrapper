@@ -128,7 +128,9 @@ public class HttpClient {
                     logger.warn("Request failed, retrying ({}/{}): {}", 
                             retries, config.getMaxRetries(), e.getMessage());
                     try {
-                        Thread.sleep(1000 * retries); // Exponential backoff
+                        // Exponential backoff with configurable multiplier
+                        long backoffTime = config.getRetryBackoffMultiplier() * retries;
+                        Thread.sleep(backoffTime);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         throw new KnowledgeBaseException("Request interrupted", ie);
