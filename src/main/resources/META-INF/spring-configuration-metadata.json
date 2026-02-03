@@ -1,0 +1,113 @@
+{
+  "groups": [
+    {
+      "name": "knowledgebase",
+      "type": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties",
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties",
+      "description": "Configuration properties for Knowledge Base API client."
+    }
+  ],
+  "properties": [
+    {
+      "name": "knowledgebase.url",
+      "type": "java.lang.String",
+      "description": "Base URL of the Knowledge Base API service.",
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.auth-token",
+      "type": "java.lang.String",
+      "description": "Authentication token (Bearer token) for API access.",
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.connect-timeout",
+      "type": "java.lang.Integer",
+      "description": "Connection timeout in seconds.",
+      "defaultValue": 30,
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.read-timeout",
+      "type": "java.lang.Integer",
+      "description": "Read timeout in seconds.",
+      "defaultValue": 120,
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.write-timeout",
+      "type": "java.lang.Integer",
+      "description": "Write timeout in seconds.",
+      "defaultValue": 120,
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.max-idle-connections",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of idle connections in the pool.",
+      "defaultValue": 50,
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.keep-alive-duration",
+      "type": "java.lang.Long",
+      "description": "Keep-alive duration for connections in minutes.",
+      "defaultValue": 10,
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.max-retries",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of retry attempts for failed requests.",
+      "defaultValue": 3,
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.retry-backoff-multiplier",
+      "type": "java.lang.Integer",
+      "description": "Retry backoff multiplier in milliseconds.",
+      "defaultValue": 2000,
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.enable-logging",
+      "type": "java.lang.Boolean",
+      "description": "Enable HTTP request/response logging.",
+      "defaultValue": false,
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    },
+    {
+      "name": "knowledgebase.preset",
+      "type": "java.lang.String",
+      "description": "Performance preset to use (development, production, highConcurrency, batchUpload, lowLatency).",
+      "sourceType": "com.knowledgebase.wrapper.spring.KnowledgeBaseProperties"
+    }
+  ],
+  "hints": [
+    {
+      "name": "knowledgebase.preset",
+      "values": [
+        {
+          "value": "development",
+          "description": "Development configuration with logging enabled."
+        },
+        {
+          "value": "production",
+          "description": "Production configuration with balanced settings."
+        },
+        {
+          "value": "highConcurrency",
+          "description": "High concurrency configuration with 50 connections."
+        },
+        {
+          "value": "batchUpload",
+          "description": "Batch upload configuration optimized for large files."
+        },
+        {
+          "value": "lowLatency",
+          "description": "Low latency configuration for fast queries."
+        }
+      ]
+    }
+  ]
+}
