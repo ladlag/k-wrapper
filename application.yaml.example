@@ -1,0 +1,88 @@
+# Knowledge Base API Wrapper - Spring Boot 配置示例
+# 将此文件内容添加到你的 Spring Boot 项目的 application.yaml 中
+
+spring:
+  application:
+    name: my-knowledge-base-app
+
+# ========================================
+# Knowledge Base 配置
+# ========================================
+knowledgebase:
+  # 必填：Knowledge Base API 服务地址
+  url: https://your-kb-service.com
+  
+  # 必填：认证 Token（推荐使用环境变量）
+  auth-token: ${KB_AUTH_TOKEN:your-default-token}
+  
+  # ========================================
+  # 方式 1: 使用性能预设（推荐）
+  # ========================================
+  # 可选值：development, production, highConcurrency, batchUpload, lowLatency
+  preset: highConcurrency
+  
+  # ========================================
+  # 方式 2: 自定义配置（如果不使用 preset）
+  # ========================================
+  # 连接超时（秒）
+  # connect-timeout: 30
+  
+  # 读取超时（秒）
+  # read-timeout: 120
+  
+  # 写入超时（秒）
+  # write-timeout: 120
+  
+  # 最大空闲连接数（支持 50 并发）
+  # max-idle-connections: 50
+  
+  # 连接保持时间（分钟）
+  # keep-alive-duration: 10
+  
+  # 最大重试次数
+  # max-retries: 3
+  
+  # 重试退避乘数（毫秒）
+  # retry-backoff-multiplier: 2000
+  
+  # 启用 HTTP 请求日志（开发环境可以启用）
+  # enable-logging: false
+
+# ========================================
+# 多环境配置示例
+# ========================================
+---
+# 开发环境
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+knowledgebase:
+  url: http://localhost:8080
+  auth-token: dev-token
+  preset: development
+
+---
+# 生产环境
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+knowledgebase:
+  url: https://kb.prod.example.com
+  auth-token: ${KB_PROD_TOKEN}
+  preset: highConcurrency
+
+---
+# 测试环境
+spring:
+  config:
+    activate:
+      on-profile: test
+
+knowledgebase:
+  url: https://kb.test.example.com
+  auth-token: ${KB_TEST_TOKEN}
+  preset: production
